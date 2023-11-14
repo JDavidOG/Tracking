@@ -1,0 +1,99 @@
+
+import numpy as np
+import pandas as pd
+from datetime import datetime
+import matplotlib.pyplot as plt
+import streamlit as st
+
+# Load data
+df = pd.read_csv("Tracking chido.csv")
+df = df.drop_duplicates()
+df = df.drop('Job requisition', axis=1)
+df = df.drop('Job Description adjustments meeting', axis=1)
+
+columns = df.columns
+
+meses = {
+    'ene.': 'Jan',
+    'feb.': 'Feb',
+    'mar.': 'Mar',
+    'abr.': 'Apr',
+    'may.': 'May',
+    'jun.': 'Jun',
+    'jul.': 'Jul',
+    'ago.': 'Aug',
+    'sep.': 'Sep',
+    'oct.': 'Oct',
+    'nov.': 'Nov',
+    'dic.': 'Dec'
+}
+
+# Function to calculate the difference in days between two dates
+def calcular_diferencia_dias(fecha_inicio, fecha_fin):
+    formato = "%d-%b"
+    fecha_inicio = datetime.strptime(fecha_inicio, formato)
+    fecha_fin = datetime.strptime(fecha_fin, formato)
+    fecha_inicio = fecha_inicio.replace(year=2000)
+    fecha_fin = fecha_fin.replace(year=2000)
+    diferencia = fecha_fin - fecha_inicio
+    return diferencia.days
+
+# Streamlit app
+st.title("Differences in Days Analysis")
+
+# User input for the start date
+fecha_inicio_input = st.text_input("Enter the start date (e.g., 18-abr.): ").lower()
+
+# Check if the start date exists in the DataFrame
+if fecha_inicio_input in df['Start Date'].values:
+    # Get the index of the row corresponding to the start date
+    indice_fila_inicio = df[df['Start Date'] == fecha_inicio_input].index[0]
+
+    # Calculate the difference in days between start date and the first column
+    try:
+        fecha_primera_columna = df.at[indice_fila_inicio, df.columns[df.columns.get_loc('Start Date') + 1]]
+        for mes_abr, mes_eng in meses.items():
+            fecha_inicio_input = fecha_inicio_input.replace(mes_abr, mes_eng)
+            fecha_primera_columna = fecha_primera_columna.replace(mes_abr, mes_eng)
+        diferencia_primera_columna = calcular_diferencia_dias(fecha_inicio_input, fecha_primera_columna)
+        st.write(f"The difference in days between {fecha_inicio_input} and {df.columns[df.columns.get_loc('Start Date') + 1]} is: {diferencia_primera_columna} days")
+    except KeyError:
+        st.write("There is no column after the start date.")
+
+    # Store the differences in days in a list for plotting
+    diferencias_en_dias = [diferencia_primera_columna]
+
+    # Iterate over the columns and calculate the difference in days
+    for columna_actual in df.columns[df.columns.get_loc('Start Date') + 1 : df.columns.get_loc('End date')]:
+        try:
+            fecha_actual = df.at[indice_fila_inicio, columna_actual]
+            for mes_abr, mes_eng in meses.items():
+                fecha_actual = fecha_actual.replace(mes_abr, mes_eng)
+
+            columna_siguiente = df.columns[df.columns.get_loc(columna_actual) + 1]
+            fecha_siguiente = df.at[indice_fila_inicio, columna_siguiente]
+            for mes_abr, mes_eng in meses.items():
+                fecha_siguiente = fecha_siguiente.replace(mes_abr, mes_eng)
+
+            diferencia_dias = calcular_diferencia_dias(fecha_actual, fecha_siguiente)
+            diferencias_en_dias.append(diferencia_dias)
+
+            st.write(f"The difference in days between {fecha_actual} and {columna_siguiente} is: {diferencia_dias} days")
+
+        except KeyError:
+            st.write(f"There is no column after {columna_actual}.")
+            break
+
+    # Plotting the bar chart with adjusted figure size and layout
+    columnas_personalizadas = ['Start Date-Short List', 'Short List-Interviews', 'Interviews Hiring manager-Tests', 'Tests-Reference Check', 'Reference Check-Offer Made', 'Offer Made-Offer acceptance', 'Offer acceptance-End Date']
+    plt.figure(figsize=(10, 6))  # Adjust the figure size as needed
+    plt.bar(columnas_personalizadas, diferencias_en_dias)
+    plt.xlabel('Stages')
+    plt.ylabel('Difference in days')
+    plt.title(f'Difference in days between {fecha_inicio_input} and subsequent columns')
+    plt.xticks(rotation=45, ha="right")
+    plt.tight_layout()  # Adjust the layout for better spacing
+    st.pyplot(plt)  # Display the plot in Streamlit
+
+else:
+    st.write(f"The start date {fecha_inicio_input} does not exist in the DataFrame.")
